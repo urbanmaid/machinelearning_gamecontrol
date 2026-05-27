@@ -10,7 +10,7 @@ Built with an optimized lightweight architecture, this system ensures robust ant
     - Contains the complete pipeline for data preprocessing, feature extraction, and model training.
     - Trains a lightweight LSTM network optimized to capture temporal gaming context.
     - Exports the final trained model into the highly compatible **ONNX** format.
-- **Unity Scripts (`/unity-scripts`)**
+- **Unity Scripts (`/component_unity`)**
     - Features a ready-to-use controller detection component attachable to the player object.
     - Utilizes **Unity Sentis** to run real-time inference on runtime input data (`MoveDelta` and `AimDelta`).
     - Logs structured inference results (`.json`) detailing operational timestamps and controller probabilities.
@@ -33,4 +33,36 @@ The model analyzes 60-frame sequences (approx. 0.5 to 1 second of gameplay) usin
 
 > **Optimization Note:** The architecture incorporates Dropout and L2 Regularization to mitigate overfitting, achieving an outstanding validation accuracy close to 1.0 with a file size of just 128KB.
 
+# How to test
+
+## Data **extraction**
+
+- For Unity
+    - Use component from `/component_unity/InputDataLogger.cs` and apply this component to player object which has input system.
+    - Set `log_saving_directory` in inspector for saving log data.
+    - Play several times with KB&Mouse and Gamepad.
+        - Note: You need to perform the control with the intention of gameplay.
+    - Check the file of `documents/{logSavingDirectory}`.
+
+## Training and Generating model
+
+- For Google Colab
+    - Upload `/notebooks/GameControllerDistinguisher.ipynb` on your folder.
+    - Set `data_folder_path` as directory where you stored data that is using for training.
+    - Run and download extracted model (`model.onnx`).
+- For local
+    - To be written.
+
+## Evaluation
+
+- For Unity
+    - Use component from `/component_unity/ControllerDetector.cs` and apply this component to player object which has input system.
+    - Set `evaluation_saving_directory` in inspector for saving evaluation data.
+    - Play several times with KB&Mouse and Gamepad.
+    - Check the file of `documents/{evaluation_saving_directory}`
+
 # Basis project that tested
+
+- **Charming Illusion - Third-person shooter-based squad combat game**
+
+The repository and planning documents of the base project on which this project was conducted are currently being prepared for external release.

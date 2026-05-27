@@ -8,6 +8,8 @@ using Unity.InferenceEngine;
 
 public class ControllerDetector : MonoBehaviour
 {
+    [SerializeField] string evaluationSavingDirectory = "TargetDirectory";
+
     [Header("ONNX Model")]
     public Unity.InferenceEngine.ModelAsset onnxModel;
 
@@ -59,11 +61,11 @@ public class ControllerDetector : MonoBehaviour
 
     private const int FeatureWindowSize = 12;
 
-    // jerk 계산용
+    // For saving 'jerk'
     private Vector2 lastAim;
     private Vector2 lastAimDelta;
 
-    // 실제 디바이스 힌트
+    // Hint for comparing real device
     private float controlSchemeHint = 0.5f;
 
     
@@ -78,8 +80,7 @@ public class ControllerDetector : MonoBehaviour
                 BackendType.GPUCompute
             );
 
-                // Input Actions
-        
+        // Input Actions
         if (playerInput == null)
         {
             playerInput =
@@ -114,17 +115,14 @@ public class ControllerDetector : MonoBehaviour
             return;
         }
 
-        // Input System 기반 입력
+        // Refer Input System
         Vector2 move =
             moveAction.ReadValue<Vector2>();
 
         Vector2 look =
             lookAction.ReadValue<Vector2>();
 
-        // =========================
-        // 실제 컨트롤 스킴 힌트
-        // =========================
-
+        // Actual control scheme hint
         string currentScheme =
             playerInput.currentControlScheme;
 
@@ -144,7 +142,7 @@ public class ControllerDetector : MonoBehaviour
             controlSchemeHint = 0.5f;
         }
 
-        // 특징 추출
+        // Get characteristic
         Vector4 feature =
             ExtractFeature(move, look);
 
@@ -156,7 +154,7 @@ public class ControllerDetector : MonoBehaviour
             inputQueue.Dequeue();
         }
 
-        // 추론 주기 제한
+        // Limit inference cycles 
         inferenceTimer += Time.deltaTime;
 
         if (
@@ -171,13 +169,10 @@ public class ControllerDetector : MonoBehaviour
         }
     }
 
-    // 특징 추출
+    // Get characteristic
     private Vector4 ExtractFeature(Vector2 move, Vector2 aim)
     {
-        // =========================
-        // History 관리
-        // =========================
-
+        // Manage history
         lookHistory.Enqueue(aim);
 
         magnitudeHistory.Enqueue(
@@ -200,10 +195,7 @@ public class ControllerDetector : MonoBehaviour
             magnitudeHistory.Dequeue();
         }
 
-        // =========================
-        // Move Digital 여부
-        // =========================
-
+        // Check Move Digital
         float moveDigital =
             (
                 Mathf.Approximately(move.x, 0f) ||
@@ -217,10 +209,7 @@ public class ControllerDetector : MonoBehaviour
             )
             ? 1f : 0f;
 
-        // =========================
-        // 실제 Variance 계산
-        // =========================
-
+        // Calculate actual variance
         float variance = 0f;
 
         if (magnitudeHistory.Count > 1)
@@ -244,10 +233,7 @@ public class ControllerDetector : MonoBehaviour
             variance /= magnitudeHistory.Count;
         }
 
-        // =========================
         // Max Speed
-        // =========================
-
         float maxSpeed = 0f;
 
         foreach (float m in magnitudeHistory)
@@ -258,10 +244,7 @@ public class ControllerDetector : MonoBehaviour
             }
         }
 
-        // =========================
-        // Jerk 계산
-        // =========================
-
+        // Calculate Jerk
         Vector2 currentDelta =
             aim - lastAim;
 
@@ -274,10 +257,7 @@ public class ControllerDetector : MonoBehaviour
         lastAim = aim;
         lastAimDelta = currentDelta;
 
-        // =========================
         // Zero Crossing
-        // =========================
-
         float zeroCross = 0f;
 
         if (lookHistory.Count > 1)
@@ -311,19 +291,11 @@ public class ControllerDetector : MonoBehaviour
                 (arr.Length - 1);
         }
 
-        // =========================
         // Hybrid Bias
-        // =========================
-
-        // 실제 디바이스 힌트를
-        // variance에 살짝 반영
+        // Apply real device hint on variance
 
         variance +=
             controlSchemeHint * 0.02f;
-
-        // =========================
-        // 최종 특징
-        // =========================
 
         return new Vector4(
             moveDigital,
@@ -333,7 +305,7 @@ public class ControllerDetector : MonoBehaviour
         );
     }
 
-    // 추론 실행
+    // Inferencing
     private void RunInference()
     {
         float[] data =
@@ -366,16 +338,14 @@ public class ControllerDetector : MonoBehaviour
             outputTensor =
                 worker.PeekOutput() as Tensor<float>;
 
-            // GPU → CPU 복사
             cpuTensor =
                 outputTensor.ReadbackAndClone();
 
-                        // 출력값 읽기
-            
+            // Get output
             CurrentGamepadProbability =
                 cpuTensor[0, 0];
 
-            // NaN 방어
+            // Prevent NaN
             if (float.IsNaN(CurrentGamepadProbability) ||
                 float.IsInfinity(CurrentGamepadProbability))
             {
@@ -394,11 +364,9 @@ public class ControllerDetector : MonoBehaviour
             float keyboardProb =
                 1.0f - gamepadProb;
 
-                        // 우세 컨트롤러 판정
-            
+            // Set dominantController
             string dominantController;
 
-            // threshold 기반 안정화
             if (gamepadProb >= 0.7f)
             {
                 dominantController = "Gamepad";
@@ -413,16 +381,7 @@ public class ControllerDetector : MonoBehaviour
                 dominantController = "Uncertain";
             }
 
-            // 로그 출력
-            /*
-            Debug.Log(
-                $"K&M={keyboardProb:F3}, " +
-                $"Gamepad={gamepadProb:F3}, " +
-                $"Dominant={dominantController}"
-            );
-            */
-
-            // 상태 변경 시에만 기록
+            // Only if dominant is changed, record
             if (
                 lastDominantController == null ||
                 dominantController !=
@@ -468,7 +427,7 @@ public class ControllerDetector : MonoBehaviour
         }
     }
 
-    // 런타임 종료 시 저장
+    // Save on runtime
     private void OnApplicationQuit()
     {
         SaveRuntimeLog();
@@ -476,7 +435,7 @@ public class ControllerDetector : MonoBehaviour
         worker?.Dispose();
     }
 
-    // JSON 저장
+    // Save as JSON
     private void SaveRuntimeLog()
     {
         try
@@ -489,7 +448,7 @@ public class ControllerDetector : MonoBehaviour
             string directory =
                 Path.Combine(
                     documentsPath,
-                    "charm_controllog"
+                    evaluationSavingDirectory
                 );
 
             if (!Directory.Exists(directory))

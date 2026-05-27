@@ -8,30 +8,30 @@ using UnityEngine.InputSystem;
 [RequireComponent(typeof(PlayerInput))]
 public class InputDataLogger : MonoBehaviour
 {
+    [SerializeField] string logSavingDirectory = "TargetDirectory";
+
     [Header("Input Action Names")]
-    [Tooltip("Player Input 컴포넌트에 설정된 이동 액션의 이름")]
     public string moveActionName = "Move";
-    [Tooltip("Player Input 컴포넌트에 설정된 조준 액션의 이름")]
     public string aimActionName = "Look";
 
     [Header("Log Settings")]
-    public float saveInterval = 15f; // 15초마다 저장
+    public float saveInterval = 15f;
 
     private PlayerInput playerInput;
     private InputAction moveAction;
     private InputAction aimAction;
 
-    // 이전 프레임의 입력값 (변화량 계산용)
+    // Input of last frame (for delta)
     private Vector2 lastMoveInput;
     private Vector2 lastAimInput;
 
-    // 데이터 저장을 위한 구조체
+    // Struct for making snapshots of control
     public struct InputLogRecord
     {
         public float timeSinceLevelLoad;
         public Vector2 moveDelta;
         public Vector2 aimDelta;
-        public string controlScheme; // Gamepad 인지 KeyboardMouse 인지 구분하기 위함
+        public string controlScheme;
     }
 
     private List<InputLogRecord> logRecords = new List<InputLogRecord>();
@@ -39,16 +39,13 @@ public class InputDataLogger : MonoBehaviour
 
     void Start()
     {
-        // PlayerInput 컴포넌트 참조
         playerInput = GetComponent<PlayerInput>();
-
-        // Action 참조
         moveAction = playerInput.actions[moveActionName];
         aimAction = playerInput.actions[aimActionName];
 
         if (moveAction == null || aimAction == null)
         {
-            Debug.LogError("InputDataLogger: 설정한 액션 이름과 일치하는 Input Action을 찾을 수 없습니다.");
+            Debug.LogError("InputDataLogger: Cannot find the input which is defined in inspector.");
         }
     }
 
@@ -62,8 +59,7 @@ public class InputDataLogger : MonoBehaviour
         Vector2 moveDelta = currentMoveInput - lastMoveInput;
         Vector2 aimDelta = currentAimInput - lastAimInput;
 
-        // 변화량이 있을 때만(또는 모든 프레임을) 기록. 
-        // 여기서는 조작 차이 분석을 위해 매 프레임 수집합니다.
+        // If is there an control
         if(IsControlInputUpdated(moveDelta, aimDelta))
         {
             logRecords.Add(new InputLogRecord
@@ -75,11 +71,11 @@ public class InputDataLogger : MonoBehaviour
             });
         }
 
-        // 다음 프레임을 위해 현재 값 저장
+        // Save the control status for next frame comparison
         lastMoveInput = currentMoveInput;
         lastAimInput = currentAimInput;
 
-        // 3. 타이머 체크 및 파일 저장
+        // Check the timer and save control log as file
         timer += Time.deltaTime;
         if (timer >= saveInterval)
         {
@@ -101,7 +97,7 @@ public class InputDataLogger : MonoBehaviour
 
         // Set directory as "My document/charm_controllog"
         string documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        string directoryPath = Path.Combine(documentsPath, "charm_controllog");
+        string directoryPath = Path.Combine(documentsPath, logSavingDirectory);
         if (!Directory.Exists(directoryPath))
         {
             Directory.CreateDirectory(directoryPath);
@@ -114,6 +110,7 @@ public class InputDataLogger : MonoBehaviour
 
         // Build CSV
         StringBuilder sb = new StringBuilder();
+        
         // Generate CSV Header (For the dataset, its controller data will be removed)
         sb.AppendLine("ControlScheme,Time,MoveDeltaX,MoveDeltaY,AimDeltaX,AimDeltaY");
 
